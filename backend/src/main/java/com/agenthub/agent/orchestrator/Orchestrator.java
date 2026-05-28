@@ -62,11 +62,22 @@ public class Orchestrator {
             return mentions;
         }
 
-        // 匹配 @ 后面跟的非空白字符
+        // 优先匹配 @"Agent Name" 格式（带引号，支持空格）
+        java.util.regex.Pattern quotedPattern = java.util.regex.Pattern.compile("@\"([^\"]+)\"");
+        java.util.regex.Matcher quotedMatcher = quotedPattern.matcher(content);
+        while (quotedMatcher.find()) {
+            mentions.add(quotedMatcher.group(1));
+        }
+
+        // 再匹配 @AgentName 格式（不带空格）
         java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("@(\\S+)");
         java.util.regex.Matcher matcher = pattern.matcher(content);
         while (matcher.find()) {
-            mentions.add(matcher.group(1));
+            String name = matcher.group(1);
+            // 跳过已被引号格式匹配的名字
+            if (!mentions.contains(name)) {
+                mentions.add(name);
+            }
         }
         return mentions;
     }

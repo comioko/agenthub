@@ -4,9 +4,10 @@ import { SendOutlined, PlusOutlined, RobotOutlined, UserOutlined, TeamOutlined }
 import { useNavigate } from 'react-router-dom'
 import axios from '../api/axios'
 import { useWebSocket } from '../websocket/socket'
+import MentionAutocomplete from '../components/MentionAutocomplete'
 import type { Conversation, Message } from '../types'
 
-const { Sider, Content } = Layout
+const { Content } = Layout
 
 const Chat = () => {
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -15,14 +16,16 @@ const Chat = () => {
   const [inputMsg, setInputMsg] = useState('')
   const [sending, setSending] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [showMention, setShowMention] = useState(false)
+  const [mentionPosition, setMentionPosition] = useState({ top: 0, left: 0 })
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<any>(null)
   const navigate = useNavigate()
 
   // 处理 WebSocket 新消息
   const handleWebSocketMessage = useCallback((data: any) => {
     if (data.type === 'message' && data.conversationId === currentConv?.id) {
       const newMsg = data.message
-      // 避免重复添加
       setMessages(prev => {
         if (prev.some(m => m.id === newMsg.id)) return prev
         return [...prev, newMsg]
@@ -33,7 +36,7 @@ const Chat = () => {
   // 连接 WebSocket
   const { subscribe, unsubscribe } = useWebSocket(handleWebSocketMessage)
 
-  // 初始化：检查登录状态
+  // 初始化
   useEffect(() => {
     const token = localStorage.getItem('token')
     if (!token) {
@@ -52,7 +55,7 @@ const Chat = () => {
     }
   }, [currentConv, subscribe, unsubscribe])
 
-  // 自动滚动到底部
+  // 自动滚动
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
@@ -95,7 +98,7 @@ const Chat = () => {
     try {
       const res = await axios.post('/conversations', {
         name: '群聊',
-        type: 2  // group chat
+        type: 2
       }) as unknown as Conversation
       setConversations([res, ...conversations])
       setCurrentConv(res)
@@ -111,9 +114,8 @@ const Chat = () => {
       const res = await axios.post(`/conversations/${currentConv.id}/messages`, {
         content: inputMsg
       }) as unknown as Message
-      // 清空输入框，消息会通过 WebSocket 接收后展示
       setInputMsg('')
-      // 乐观更新：直接添加到消息列表
+      setShowMention(false)
       setMessages(prev => [...prev, res])
     } catch (error) {
       console.error('发送消息失败', error)
@@ -122,24 +124,70 @@ const Chat = () => {
     }
   }
 
-  // 渲染消息
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value
+    setInputMsg(value)
+
+    // 检测 @ 符号
+    const cursorPos = e.target.selectionStart
+    const textBeforeCursor = value.substring(0, cursorPos)
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+
+    if (lastAtIndex !== -1) {
+      const textAfterAt = textBeforeCursor.substring(lastAtIndex + 1)
+
+      // 如果 @ 后面没有空格，说明正在输入 mention
+      if (!textAfterAt.includes(' ') && !textAfterAt.includes('"')) {
+        // 获取输入框的位置
+        const inputEl = inputRef.current?.resizableTextArea?.textArea
+        if (inputEl) {
+          const rect = inputEl.getBoundingClientRect()
+          setMentionPosition({
+            top: rect.bottom + window.scrollY + 5,
+            left: rect.left + lastAtIndex * 8
+          })
+        }
+        setShowMention(true)
+        return
+      }
+    }
+
+    setShowMention(false)
+  }
+
+  const handleSelectAgent = (agentName: string) => {
+    // 找到最后一个 @ 的位置，替换为完整的 agent 名称
+    const cursorPos = inputRef.current?.resizableTextArea?.textArea.selectionStart || 0
+    const textBeforeCursor = inputMsg.substring(0, cursorPos)
+    const lastAtIndex = textBeforeCursor.lastIndexOf('@')
+
+    if (lastAtIndex !== -1) {
+      const newValue = inputMsg.substring(0, lastAtIndex) + agentName + inputMsg.substring(cursorPos)
+      setInputMsg(newValue)
+    } else {
+      setInputMsg(inputMsg + agentName)
+    }
+
+    setShowMention(false)
+    inputRef.current?.focus()
+  }
+
   const renderMessage = (msg: Message) => {
     const isUser = msg.senderType === 1
-    const isSystem = msg.senderType === 3  // orchestrator or system
+    const isSystem = msg.senderType === 3
 
-    // 根据 senderType 渲染不同的样式
     let bgColor = '#fff'
     let textColor = '#000'
-    let avatarIcon = <RobotOutlined />
+    let avatarBg = '#52c41a'
 
     if (isUser) {
       bgColor = '#1890ff'
       textColor = '#fff'
-      avatarIcon = <UserOutlined />
+      avatarBg = '#1890ff'
     } else if (isSystem) {
       bgColor = '#f0f5ff'
       textColor = '#333'
-      avatarIcon = <TeamOutlined />
+      avatarBg = '#722ed1'
     }
 
     return (
@@ -152,7 +200,7 @@ const Chat = () => {
         }}
       >
         {!isUser && (
-          <Avatar icon={avatarIcon} style={{ marginRight: 8, background: isSystem ? '#722ed1' : '#52c41a' }} />
+          <Avatar icon={isSystem ? <TeamOutlined /> : <RobotOutlined />} style={{ marginRight: 8, background: avatarBg }} />
         )}
         <Card
           size="small"
@@ -179,7 +227,7 @@ const Chat = () => {
           </pre>
         </Card>
         {isUser && (
-          <Avatar icon={avatarIcon} style={{ marginLeft: 8, background: '#1890ff' }} />
+          <Avatar icon={<UserOutlined />} style={{ marginLeft: 8, background: avatarBg }} />
         )}
       </div>
     )
@@ -188,7 +236,7 @@ const Chat = () => {
   return (
     <Layout style={{ height: '100vh' }}>
       {/* 左侧会话列表 */}
-      <Sider width={280} style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}>
+      <Layout.Sider width={280} style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}>
         <div style={{ padding: 16 }}>
           <Space direction="vertical" style={{ width: '100%' }} size="small">
             <Button icon={<PlusOutlined />} block onClick={createConversation}>
@@ -228,7 +276,7 @@ const Chat = () => {
             </List.Item>
           )}
         />
-      </Sider>
+      </Layout.Sider>
 
       {/* 右侧聊天区域 */}
       <Content style={{ display: 'flex', flexDirection: 'column', background: '#f5f5f5' }}>
@@ -261,15 +309,30 @@ const Chat = () => {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* @ 提及选择框 */}
+            <MentionAutocomplete
+              visible={showMention}
+              position={mentionPosition}
+              onSelect={handleSelectAgent}
+              onClose={() => setShowMention(false)}
+            />
+
             {/* 输入区域 */}
             <div style={{ padding: 16, background: '#fff', borderTop: '1px solid #f0f0f0' }}>
               <Space.Compact style={{ width: '100%' }}>
-                <Input
+                <Input.TextArea
+                  ref={inputRef}
                   value={inputMsg}
-                  onChange={(e) => setInputMsg(e.target.value)}
-                  onPressEnter={sendMessage}
-                  placeholder={currentConv.type === 2 ? "输入消息，@ 提及 Agent 如 @Code Assistant" : "输入消息..."}
+                  onChange={handleInputChange}
+                  onPressEnter={(e) => {
+                    if (!e.shiftKey) {
+                      e.preventDefault()
+                      sendMessage()
+                    }
+                  }}
+                  placeholder={currentConv.type === 2 ? "输入 @ 提及 Agent..." : "输入消息..."}
                   disabled={sending}
+                  autoSize={{ minRows: 1, maxRows: 4 }}
                   style={{ borderRadius: 20 }}
                 />
                 <Button
@@ -278,9 +341,7 @@ const Chat = () => {
                   onClick={sendMessage}
                   loading={sending}
                   style={{ borderRadius: 20 }}
-                >
-                  发送
-                </Button>
+                />
               </Space.Compact>
             </div>
           </>
