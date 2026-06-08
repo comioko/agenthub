@@ -27,7 +27,8 @@ public class ConversationController {
         Long userId = (Long) auth.getPrincipal();
         String name = (String) body.get("name");
         Integer type = (Integer) body.getOrDefault("type", 1);
-        return ResponseEntity.ok(conversationService.createConversation(userId, name, type));
+        Long agentId = body.get("agentId") != null ? ((Number) body.get("agentId")).longValue() : null;
+        return ResponseEntity.ok(conversationService.createConversation(userId, name, type, agentId));
     }
 
     @GetMapping

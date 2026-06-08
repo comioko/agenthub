@@ -23,6 +23,7 @@ frontend/*.local
 .env
 .env.local
 .env.*.local
+.env.docker
 
 # Backend config (contains sensitive data)
 backend/src/main/resources/application.yml

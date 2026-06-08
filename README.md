@@ -2,34 +2,30 @@
 
 多 Agent 协作平台 - 类飞书/微信交互形态的 AI 对话系统
 
-## 项目简介
+## 一键部署
 
-AgentHub 是一个支持单聊、群聊协作的多 Agent 平台，用户可以与不同 AI Agent 交流，Agent 之间可以协同完成任务。
+```bash
+# 克隆项目
+git clone https://github.com/comioko/agenthub.git
+cd agenthub
 
-### 核心功能
+# 一键启动（需要 Docker 和 Docker Compose）
+docker-compose up -d
 
-- **单聊**：用户与单个 Agent 对话
-- **群聊协作**：@ 多个 Agent，由 Orchestrator 负责任务分派和结果汇总
-- **富媒体 Artifact**：代码块、Diff 卡片、网页预览、文件附件
-- **用户自建 Agent**：通过配置 System Prompt 创建自定义 Agent
-- **多平台接入**：支持 MiniMax、Coze 等主流 Agent 平台
+# 访问应用
+# 前端: http://localhost
+# 后端 API: http://localhost:8080
+```
 
-## 技术栈
+首次启动会自动：
+1. 初始化 MySQL 数据库
+2. 构建并启动后端服务
+3. 构建并启动前端服务
 
-| 层级 | 技术 |
-|------|------|
-| 前端 | React 18 + TypeScript + Vite + Ant Design |
-| 后端 | Spring Boot 3.x + MyBatis-Plus |
-| 数据库 | MySQL 8.0 |
-| 实时通信 | WebSocket + STOMP |
-| 鉴权 | JWT |
-| Agent 调用 | OkHttp + Retrofit |
+## 快速开始（开发模式）
 
-## 快速开始
-
-### 环境要求
-
-- JDK 17+
+### 前置要求
+- JDK 21+
 - Node.js 18+
 - Docker (for MySQL)
 - Maven 3.8+
@@ -37,13 +33,7 @@ AgentHub 是一个支持单聊、群聊协作的多 Agent 平台，用户可以�
 ### 1. 启动 MySQL
 
 ```bash
-docker-compose up -d
-```
-
-初始化数据库：
-
-```bash
-mysql -h localhost -u root -proot123 < backend/src/main/resources/schema.sql
+docker-compose up -d mysql
 ```
 
 ### 2. 启动后端
@@ -73,6 +63,25 @@ npm run dev
 2. 登录
 3. 创建会话开始聊天
 
+## 核心功能
+
+- **单聊**：用户与单个 Agent 对话
+- **群聊协作**：@ 多个 Agent，由 Orchestrator 负责任务分派和结果汇总
+- **富媒体 Artifact**：代码块、Diff 卡片、网页预览
+- **用户自建 Agent**：通过配置 System Prompt 创建自定义 Agent
+- **多平台接入**：支持 MiniMax、Coze 等主流 Agent 平台
+
+## 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 前端 | React 18 + TypeScript + Vite + Ant Design |
+| 后端 | Spring Boot 3.x + MyBatis-Plus |
+| 数据库 | MySQL 8.0 |
+| 实时通信 | WebSocket |
+| 鉴权 | JWT |
+| 部署 | Docker + Docker Compose + Nginx |
+
 ## 项目结构
 
 ```
@@ -89,19 +98,24 @@ AgentHub/
 │   │   │   └── orchestrator/# 群聊主控
 │   │   ├── security/       # JWT 鉴权
 │   │   └── config/         # 配置类
-│   └── src/main/resources/
-│       ├── application.yml
-│       └── schema.sql      # 数据库建表脚本
+│   └── Dockerfile
 │
 ├── frontend/                # React 前端
-│   └── src/
-│       ├── api/            # API 请求封装
-│       ├── components/      # 公共组件
-│       ├── pages/           # 页面
-│       ├── stores/          # Zustand 状态
-│       └── types/           # TypeScript 类型
+│   ├── src/
+│   │   ├── api/            # API 请求封装
+│   │   ├── components/      # 公共组件
+│   │   ├── pages/           # 页面
+│   │   └── websocket/       # WebSocket
+│   ├── Dockerfile
+│   └── nginx.conf           # Nginx 配置
 │
-└── docker-compose.yml      # MySQL 容器
+├── docs/                    # 开发规范文档
+│   ├── specs/              # 功能规范
+│   ├── skills/             # 开发技能
+│   └── rules/              # 开发规则
+│
+├── docker-compose.yml       # Docker 编排
+└── README.md
 ```
 
 ## API 文档
@@ -121,6 +135,13 @@ AgentHub/
 | POST | /api/conversations | 创建会话 |
 | GET | /api/conversations/{id}/messages | 获取消息列表 |
 | POST | /api/conversations/{id}/messages | 发送消息 |
+
+### Agent
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | /api/agents | 获取 Agent 列表 |
+| POST | /api/agents | 创建 Agent |
 
 ## 开发指南
 
@@ -150,6 +171,23 @@ npm run dev
 npm run build
 ```
 
+## 环境变量
+
+### Docker 部署
+
+在 `.env.docker` 或环境变量中配置：
+
+```env
+MYSQL_ROOT_PASSWORD=root123
+JWT_SECRET=your-jwt-secret
+MINIMAX_API_KEY=your-minimax-api-key
+COZE_API_KEY=your-coze-api-key
+```
+
+### 开发模式
+
+复制 `backend/src/main/resources/application-local.yml.example` 为 `application-local.yml` 并配置。
+
 ## 演示链路
 
 1. ✅ 用户注册/登录
@@ -158,14 +196,6 @@ npm run build
 4. ✅ Agent 回复
 5. 🔄 群聊 @ 多个 Agent（开发中）
 6. 🔄 Artifact 卡片展示（开发中）
-
-## 后续计划
-
-- [ ] Orchestrator 群聊协作逻辑
-- [ ] 多 Agent 适配器接入
-- [ ] 富媒体 Artifact 卡片
-- [ ] 用户自建 Agent
-- [ ] 部署能力
 
 ## License
 

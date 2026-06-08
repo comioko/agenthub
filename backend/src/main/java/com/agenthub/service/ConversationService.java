@@ -19,6 +19,10 @@ public class ConversationService {
     private final ConversationParticipantRepository participantRepository;
 
     public Conversation createConversation(Long userId, String name, Integer type) {
+        return createConversation(userId, name, type, null);
+    }
+
+    public Conversation createConversation(Long userId, String name, Integer type, Long agentId) {
         Conversation conv = new Conversation();
         conv.setName(name);
         conv.setType(type);
@@ -26,11 +30,21 @@ public class ConversationService {
         conv.setLastMessageAt(LocalDateTime.now());
         conversationRepository.insert(conv);
 
+        // 添加用户为参与者
         ConversationParticipant participant = new ConversationParticipant();
         participant.setConversationId(conv.getId());
         participant.setUserId(userId);
         participant.setRole(1);
         participantRepository.insert(participant);
+
+        // 如果指定了 Agent，添加 Agent 为参与者
+        if (agentId != null) {
+            ConversationParticipant agentParticipant = new ConversationParticipant();
+            agentParticipant.setConversationId(conv.getId());
+            agentParticipant.setAgentId(agentId);
+            agentParticipant.setRole(2);
+            participantRepository.insert(agentParticipant);
+        }
 
         return conv;
     }

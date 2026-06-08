@@ -19,4 +19,15 @@ public class AgentController {
     public ResponseEntity<List<Agent>> getAgents() {
         return ResponseEntity.ok(agentService.getPublicAgents());
     }
+
+    @PostMapping
+    public ResponseEntity<Agent> createAgent(@RequestBody Agent agent) {
+        Agent created = agentService.createAgent(agent);
+        return ResponseEntity.ok(created);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Agent> getAgent(@PathVariable Long id) {
+        return ResponseEntity.ok(agentService.getAgentById(id));
+    }
 }

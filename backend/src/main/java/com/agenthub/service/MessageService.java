@@ -1,9 +1,14 @@
 package com.agenthub.service;
 
+import com.agenthub.agent.adapter.AgentAdapter;
+import com.agenthub.agent.core.AgentRequest;
+import com.agenthub.agent.core.AgentResponse;
 import com.agenthub.agent.orchestrator.Orchestrator;
 import com.agenthub.model.entity.Conversation;
+import com.agenthub.model.entity.ConversationParticipant;
 import com.agenthub.model.entity.Message;
 import com.agenthub.model.entity.MessageBlock;
+import com.agenthub.repository.ConversationParticipantRepository;
 import com.agenthub.repository.ConversationRepository;
 import com.agenthub.repository.MessageBlockRepository;
 import com.agenthub.repository.MessageRepository;
@@ -15,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -26,10 +32,12 @@ public class MessageService {
     private final MessageRepository messageRepository;
     private final MessageBlockRepository messageBlockRepository;
     private final ConversationRepository conversationRepository;
+    private final ConversationParticipantRepository conversationParticipantRepository;
     private final AgentService agentService;
     private final ConversationService conversationService;
     private final Orchestrator orchestrator;
     private final WebSocketHandler webSocketHandler;
+    private final List<AgentAdapter> adapters;
 
     @Transactional
     public Message sendMessage(Long userId, Long convId, String content) {
@@ -60,15 +68,28 @@ public class MessageService {
         }
 
         // 3. 单聊：调用 Agent 获取回复
-        String agentResponse = agentService.chat(convId, content);
+        AgentResponse agentResponse = agentService.chatWithAgent(convId, content);
 
         Message agentMsg = new Message();
         agentMsg.setConversationId(convId);
         agentMsg.setSenderId(2L); // system agent
         agentMsg.setSenderType(2); // agent
-        agentMsg.setContent(agentResponse);
+        agentMsg.setContent(agentResponse.getContent());
         agentMsg.setMessageType(1);
         messageRepository.insert(agentMsg);
+
+        // 保存 Artifact blocks
+        if (agentResponse.getBlocks() != null && !agentResponse.getBlocks().isEmpty()) {
+            for (AgentResponse.ArtifactBlock block : agentResponse.getBlocks()) {
+                MessageBlock msgBlock = new MessageBlock();
+                msgBlock.setMessageId(agentMsg.getId());
+                msgBlock.setBlockType(block.getType());
+                msgBlock.setContent(block.getContent());
+                msgBlock.setLanguage(block.getLanguage());
+                msgBlock.setTitle(block.getTitle());
+                messageBlockRepository.insert(msgBlock);
+            }
+        }
 
         conversationService.updateLastMessageTime(convId);
 

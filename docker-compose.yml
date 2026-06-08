@@ -1,4 +1,5 @@
 services:
+  # MySQL 数据库
   mysql:
     image: mysql:8.0
     container_name: agenthub-mysql
@@ -11,9 +12,50 @@ services:
       - "3306:3306"
     volumes:
       - mysql_data:/var/lib/mysql
-    command: --default-authentication-plugin=mysql_native_password
+      - ./backend/src/main/resources/schema.sql:/docker-entrypoint-initdb.d/1-schema.sql
+    command: --default-authentication-plugin=mysql_native_password --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
     networks:
       - agenthub-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 后端服务
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: agenthub-backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://agenthub-mysql:3306/agenthub?useUnicode=true&characterEncoding=utf8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root123
+      JWT_SECRET: agenthub-256-bit-secret-key-for-jwt-token-generation-change-in-production
+      TZ: Asia/Shanghai
+    ports:
+      - "8080:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - agenthub-network
+    restart: unless-stopped
+
+  # 前端服务 (Nginx)
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: agenthub-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - agenthub-network
+    restart: unless-stopped
 
 volumes:
   mysql_data:

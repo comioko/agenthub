@@ -1,11 +1,14 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { Layout, List, Input, Avatar, Card, Space, Badge, Button, Spin } from 'antd'
-import { SendOutlined, PlusOutlined, RobotOutlined, UserOutlined, TeamOutlined } from '@ant-design/icons'
+import { SendOutlined, PlusOutlined, RobotOutlined, UserOutlined, TeamOutlined, AppstoreOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
 import axios from '../api/axios'
 import { useWebSocket } from '../websocket/socket'
 import MentionAutocomplete from '../components/MentionAutocomplete'
-import type { Conversation, Message } from '../types'
+import CodeCard from '../components/ArtifactCard/CodeCard'
+import DiffCard from '../components/ArtifactCard/DiffCard'
+import WebPreviewCard from '../components/ArtifactCard/WebPreviewCard'
+import type { Conversation, Message, MessageBlock } from '../types'
 
 const { Content } = Layout
 
@@ -143,8 +146,8 @@ const Chat = () => {
         if (inputEl) {
           const rect = inputEl.getBoundingClientRect()
           setMentionPosition({
-            top: rect.bottom + window.scrollY + 5,
-            left: rect.left + lastAtIndex * 8
+            top: Math.min(rect.bottom + 5, window.innerHeight - 320),
+            left: Math.min(rect.left, window.innerWidth - 270)
           })
         }
         setShowMention(true)
@@ -190,6 +193,37 @@ const Chat = () => {
       avatarBg = '#722ed1'
     }
 
+    const renderBlock = (block: MessageBlock) => {
+      if (block.blockType === 'code') {
+        return (
+          <CodeCard
+            code={block.content}
+            language={block.language}
+            title={block.title}
+          />
+        )
+      }
+      if (block.blockType === 'web') {
+        return (
+          <WebPreviewCard
+            htmlContent={block.content}
+            title={block.title}
+          />
+        )
+      }
+      if (block.blockType === 'diff') {
+        return (
+          <DiffCard
+            oldCode={block.metadata?.oldCode}
+            newCode={block.content}
+            language={block.language}
+            title={block.title}
+          />
+        )
+      }
+      return null
+    }
+
     return (
       <div
         key={msg.id}
@@ -225,6 +259,9 @@ const Chat = () => {
           }}>
             {msg.content}
           </pre>
+          {msg.blocks && msg.blocks.map((block, idx) => (
+            <div key={idx}>{renderBlock(block)}</div>
+          ))}
         </Card>
         {isUser && (
           <Avatar icon={<UserOutlined />} style={{ marginLeft: 8, background: avatarBg }} />
@@ -239,6 +276,9 @@ const Chat = () => {
       <Layout.Sider width={280} style={{ background: '#fff', borderRight: '1px solid #f0f0f0' }}>
         <div style={{ padding: 16 }}>
           <Space direction="vertical" style={{ width: '100%' }} size="small">
+            <Button icon={<AppstoreOutlined />} block onClick={() => navigate('/agents')}>
+              Agent 列表
+            </Button>
             <Button icon={<PlusOutlined />} block onClick={createConversation}>
               新建单聊
             </Button>

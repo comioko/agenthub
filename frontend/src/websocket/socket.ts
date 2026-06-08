@@ -5,7 +5,6 @@ type MessageHandler = (data: any) => void
 class WebSocketClient {
   private ws: WebSocket | null = null
   private url: string
-  private token: string
   private reconnectAttempts = 0
   private maxReconnectAttempts = 5
   private reconnectDelay = 3000
@@ -16,7 +15,6 @@ class WebSocketClient {
     const token = localStorage.getItem('token') || ''
     const wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8080'
     this.url = `${wsUrl}/ws?token=${token}`
-    this.token = token
   }
 
   connect() {
